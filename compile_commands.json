@@ -1,0 +1,29 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-Wall",
+      "-O2",
+      "-I../include/",
+      "-c",
+      "skiplist.c"
+    ],
+    "directory": "/home/prithvimk/Desktop/Dalhousie/Winter_2024/CSCI_6105/Project/binskip/lib",
+    "file": "/home/prithvimk/Desktop/Dalhousie/Winter_2024/CSCI_6105/Project/binskip/lib/skiplist.c"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-c",
+      "-Wall",
+      "-O2",
+      "-I../include/",
+      "-o",
+      "tests",
+      "test.c"
+    ],
+    "directory": "/home/prithvimk/Desktop/Dalhousie/Winter_2024/CSCI_6105/Project/binskip/tests",
+    "file": "/home/prithvimk/Desktop/Dalhousie/Winter_2024/CSCI_6105/Project/binskip/tests/test.c",
+    "output": "/home/prithvimk/Desktop/Dalhousie/Winter_2024/CSCI_6105/Project/binskip/tests/tests"
+  }
+]

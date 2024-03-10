@@ -1,0 +1,8 @@
+# Ignore build files
+*.o
+*.a
+
+# Ignore binaries
+tests
+
+.cache/
