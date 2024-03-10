@@ -7,13 +7,13 @@
 #define SKIPLIST_MAX_HEIGHT 32
 
 typedef struct node {
-	int key;
-	void *value;
-	int top_layer;
-	struct node *next[SKIPLIST_MAX_HEIGHT];
-	bool marked;
-	bool full_linked;
-	pthread_mutex_t lock;
+  int key;
+  void *value;
+  int top_layer;
+  struct node *next[SKIPLIST_MAX_HEIGHT];
+  bool marked;
+  bool full_linked;
+  pthread_mutex_t lock;
 } node_t;
 
 #define node_s (sizeof(struct node))
