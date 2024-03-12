@@ -3,6 +3,6 @@
 *.a
 
 # Ignore binaries
-tests
+./tests/tests
 
 .cache/
