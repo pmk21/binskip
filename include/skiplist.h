@@ -18,10 +18,22 @@ typedef struct node {
 
 #define node_s (sizeof(struct node))
 
+/* Common helper functions */
+int skiplist_remove(node_t *head, int key);
+void skiplist_display(node_t *head);
+int skiplist_find_node(node_t *head, int key, node_t **preds, node_t **succs);
+
+/* Basic skip list */
 node_t *skiplist_init(void);
 void skiplist_destroy(node_t *head);
 int skiplist_insert(node_t *head, int key, void *value);
 void *skiplist_get(node_t *head, int key);
-int skiplist_remove(node_t *head, int key);
+
+/* Concurrent skip list */
+node_t *pskiplist_init(void);
+void pskiplist_destroy(node_t *head);
+int pskiplist_insert(node_t *head, int key, void *value);
+void *pskiplist_get(node_t *head, int key);
+int pskiplist_remove(node_t *head, int key);
 
 #endif

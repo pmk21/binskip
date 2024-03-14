@@ -2,7 +2,7 @@ LIBS := libskiplist.a
 
 CC = gcc
 INCDIR = ../include/
-CFLAGS += -Wall -O2 -I$(INCDIR)
+CFLAGS += -g -Wall -O2 -I$(INCDIR)
 LDFLAGS += -lpthread
 
 .PHONY: all
