@@ -177,6 +177,27 @@ void skiplist_display(node_t *head) {
   }
 }
 
+void skiplist_print(node_t *head) {
+  node_t *curr;
+  int i, j;
+  int arr[SKIPLIST_MAX_HEIGHT];
+	
+  for (i=0; i< sizeof arr/sizeof arr[0]; i++) arr[i] = 0;
+	
+  curr = head;
+  do {
+    printf("%d", (int) curr->key);
+    for (i = 0; i < curr->top_layer; i++) {
+      printf("-*");
+    }
+    arr[curr->top_layer]++;
+    printf("\n");
+    curr = curr->next[0];
+  } while (curr); 
+  for (j=0; j<SKIPLIST_MAX_HEIGHT; j++)
+    printf("%d nodes of level %d\n", arr[j], j);
+}
+
 int skiplist_find_node(node_t *head, int key, node_t **preds, node_t **succs) {
   node_t *curr = NULL;
   int lfound = -1;
@@ -256,5 +277,114 @@ Finally:
     if (ret >= 0)
       return ret;
   }
+}
+
+static inline int ok_to_delete(node_t *node, int found) {
+  return (node->full_linked && (node->top_layer == found) && !node->marked);
+}
+
+static inline void unlock_levels(node_t *head, node_t **nodes, int highest_level) {
+  int i;
+  node_t *old = NULL;
+
+  for (i = 0; i <= highest_level; i++) {
+    if (old != nodes[i] && nodes[i] != NULL) {
+      UNLOCK_NODE(nodes[i]);
+    }
+    old = nodes[i];
+  }
+}
+
+int pskiplist_remove(node_t *head, int key) {
+  node_t *succs[SKIPLIST_MAX_HEIGHT], *preds[SKIPLIST_MAX_HEIGHT];
+  node_t *node_todel, *prev_pred;
+  node_t *pred, *succ;
+  int is_marked, toplevel, highest_locked, i, valid, found;
+
+  node_todel = NULL;
+  is_marked = 0;
+  toplevel = -1;
+
+  while (true) {
+    found = skiplist_find_node(head, key, preds, succs);
+
+    if (is_marked || (found != -1 && ok_to_delete(succs[found], found))) {
+      if (!is_marked) {
+        node_todel = succs[found];
+        pthread_mutex_lock(&node_todel->lock);
+        toplevel = node_todel->top_layer;
+
+        if (node_todel->marked) {
+          pthread_mutex_unlock(&node_todel->lock);
+          return 0;
+        }
+
+        node_todel->marked = 1;
+        is_marked = 1;
+      }
+
+      highest_locked = -1;
+      prev_pred = NULL;
+      valid = 1;
+      for (i = 0; valid && (i < toplevel); i++) {
+        pred = preds[i];
+        succ = succs[i];
+        if (pred != prev_pred) {
+          LOCK_NODE(pred);
+          highest_locked = i;
+          prev_pred = pred;
+        }
+        valid = (!pred->marked && ((volatile node_t*) pred->next[i] == 
+					 (volatile node_t*) succ));
+      }
+
+      if (!valid) {
+        unlock_levels(head, preds, highest_locked);
+        continue;
+      }
+
+      for (i = toplevel; i >= 0; i--) {
+        if (preds[i] != NULL)
+          preds[i]->next[i] = node_todel->next[i];
+      }
+
+      UNLOCK_NODE(node_todel);
+      unlock_levels(head, preds, highest_locked);
+      return 1;
+    } else {
+      return 0;
+    }
+  }
+}
+
+static node_t *skiplist_search_node(node_t *head, int key) {
+  int i;
+  node_t *pred, *curr, *nd = NULL;
+
+  pred = head;
+  for (i = pred->top_layer; i >= 0; i--) {
+    curr = pred->next[i];
+    while (curr != NULL && key > curr->key) {
+      pred = curr;
+      curr = pred->next[i];
+    }
+
+    if (curr != NULL && key == curr->key) {
+      nd = curr;
+      break;
+    }
+  }
+
+  return nd;
+}
+
+void *pskiplist_get(node_t *head, int key) {
+  void *result = NULL;
+  node_t *rnode = skiplist_search_node(head, key);
+
+  if (rnode != NULL && !rnode->marked && rnode->full_linked)
+    result = rnode->value;
+
+  return result;
 }
 

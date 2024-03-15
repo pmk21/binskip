@@ -56,6 +56,10 @@ void test_parallel_insert_get(void) {
 
   pskiplist_insert(head, INT_MIN, "MIN");
   pskiplist_insert(head, INT_MAX, "MAX");
-  pskiplist_insert(head, 3, "three");
+  pskiplist_insert(head, 35, "three");
+  pskiplist_insert(head, 5, "three");
+  pskiplist_insert(head, 21, "three");
+  skiplist_display(head);
+  pskiplist_remove(head, 21);
   skiplist_display(head);
 }
