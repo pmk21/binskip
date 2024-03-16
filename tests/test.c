@@ -1,9 +1,18 @@
-#include "test.h"
 #include <assert.h>
 #include <stdio.h>
 #include <limits.h>
+#include <stdlib.h>
+#include <pthread.h>
 
 #include "skiplist.h"
+#include "test.h"
+
+int rand_seed = 0;
+
+static void seed_rand(int seed) {
+  if (!rand_seed)
+    srand((unsigned int)seed);
+}
 
 int main() {
 
@@ -49,17 +58,44 @@ void test_insert_get() {
   printf("findNode: %d\n", skiplist_find_node(head, INT_MAX, preds, succs));
 }
 
+static int my_random(int low, int high) {
+  double my_rand = rand() / (1.0 + RAND_MAX);
+  int range = high - low + 1;
+
+  return (my_rand * range) + low;
+}
+
+static void* test_thr(void *head) {
+  int key = my_random(-100000, 100000);
+  int rkey = my_random(-100000, 100000);
+  printf("Key : %d\n", key);
+  pskiplist_insert(head, key, "test");
+  printf("RKey : %d\n", rkey);
+  pskiplist_remove(head, rkey);
+  pthread_exit(head);
+}
+
 void test_parallel_insert_get(void) {
+  node_t *head = skiplist_init();
+  int num_thread = 5;
+  pthread_t ptids[5];
+  void *status;
 
   printf("Allocating a skip list...\n");
-  node_t *head = skiplist_init();
+  /* Set the seed for the random number generator */
+  seed_rand(2024);
+  
+  /* Algorithm requires a LSentinel and RSetinel which are 
+   * INT_MAX and INT_MIN respectively
+   */
+  pskiplist_insert(head, INT_MIN, "test");
+  pskiplist_insert(head, INT_MAX, "test");
+  for (int i = 0; i < num_thread; i++) {
+    pthread_create(&ptids[i], NULL, test_thr, head);
+  }
 
-  pskiplist_insert(head, INT_MIN, "MIN");
-  pskiplist_insert(head, INT_MAX, "MAX");
-  pskiplist_insert(head, 35, "three");
-  pskiplist_insert(head, 5, "three");
-  pskiplist_insert(head, 21, "three");
-  skiplist_display(head);
-  pskiplist_remove(head, 21);
+  for (int i = 0; i < num_thread; i++) {
+    pthread_join(ptids[i], &status);
+  }
   skiplist_display(head);
 }

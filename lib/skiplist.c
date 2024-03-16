@@ -222,67 +222,6 @@ int skiplist_find_node(node_t *head, int key, node_t **preds, node_t **succs) {
   return lfound;
 }
 
-int pskiplist_insert(node_t *head, int key, void *value) {
-  int ret = -1;
-  int top_layer = geometric_level_generator(head->top_layer);
-  node_t *preds[SKIPLIST_MAX_HEIGHT] = {NULL}, *succs[SKIPLIST_MAX_HEIGHT] = {NULL};
-  int highest_locked = -1;
-
-  while (true) {
-    int lfound = skiplist_find_node(head, key, preds, succs);
-    if (lfound != -1) {
-      node_t *node_found = succs[lfound];
-      if (!node_found->marked) {
-        while (!node_found->full_linked) {;}
-        ret = 1;
-      }
-      goto Finally;
-    }
-    highest_locked = -1;
-    node_t *pred, *succ, *prev_pred = NULL;
-    bool valid = true;
-    for (int layer = 0; valid && (layer <= top_layer); layer++) {
-      pred = preds[layer];
-      succ = succs[layer];
-      if (pred != NULL && pred != prev_pred) {
-        pthread_mutex_lock(&pred->lock);
-        highest_locked = layer;
-        prev_pred = pred;
-      }
-      if (pred != NULL && succ != NULL)
-        valid = pred != NULL && succ != NULL && !pred->marked && !succ->marked &&
-          pred->next[layer] == succ;
-    }
-    if (!valid) goto Finally;
-
-    node_t *new_node = malloc(node_s);
-    new_node->top_layer = top_layer;
-    new_node->key = key;
-    new_node->value = value;
-    new_node->marked = false;
-    for (int layer = 0; layer <= top_layer; layer++) {
-      new_node->next[layer] = succs[layer];
-      if (preds[layer])
-        preds[layer]->next[layer] = new_node;
-    }
-    new_node->full_linked = true;
-    ret = 0;
-Finally:
-    if (highest_locked >= 0) {
-      for (int j = highest_locked; j >= 0; j--) {
-        pthread_mutex_unlock(&preds[j]->lock);
-      }
-      highest_locked = -1;
-    }
-    if (ret >= 0)
-      return ret;
-  }
-}
-
-static inline int ok_to_delete(node_t *node, int found) {
-  return (node->full_linked && (node->top_layer == found) && !node->marked);
-}
-
 static inline void unlock_levels(node_t *head, node_t **nodes, int highest_level) {
   int i;
   node_t *old = NULL;
@@ -293,6 +232,64 @@ static inline void unlock_levels(node_t *head, node_t **nodes, int highest_level
     }
     old = nodes[i];
   }
+}
+
+int pskiplist_insert(node_t *head, int key, void *value) {
+  int lfound, layer, highest_locked = -1;
+  int top_layer = geometric_level_generator(head->top_layer);
+  node_t *node_found, *preds[SKIPLIST_MAX_HEIGHT] = {NULL}, *succs[SKIPLIST_MAX_HEIGHT] = {NULL};
+  node_t *pred, *succ, *prev_pred, *new_node;
+  bool valid;
+
+  while (true) {
+    lfound = skiplist_find_node(head, key, preds, succs);
+    if (lfound != -1) {
+      node_found = succs[lfound];
+      if (!node_found->marked) {
+        while (!node_found->full_linked) {;}
+        return 0;
+      }
+      continue;
+    }
+    highest_locked = -1;
+    prev_pred = NULL;
+    valid = true;
+    for (layer = 0; valid && (layer <= top_layer); layer++) {
+      pred = preds[layer];
+      succ = succs[layer];
+      if (pred != NULL && pred != prev_pred) {
+        pthread_mutex_lock(&pred->lock);
+        highest_locked = layer;
+        prev_pred = pred;
+      }
+      /* NOTE: valid should not be changed until and unless pred and succ are not NULL */
+      if (pred != NULL && succ != NULL) 
+        valid = ((pred != NULL) && (succ != NULL) && !pred->marked && !succ->marked &&
+          (volatile node_t *)pred->next[layer] == (volatile node_t *)succ);
+    }
+    if (!valid) {
+      unlock_levels(head, preds, highest_locked);
+      continue;
+    }
+
+    new_node = malloc(node_s);
+    new_node->top_layer = top_layer;
+    new_node->key = key;
+    new_node->value = value;
+    new_node->marked = false;
+    for (layer = 0; layer <= top_layer; layer++) {
+      new_node->next[layer] = succs[layer];
+      if (preds[layer])
+        preds[layer]->next[layer] = new_node;
+    }
+    new_node->full_linked = true;
+    unlock_levels(head, preds, highest_locked);
+    return 1;
+  }
+}
+
+static inline int ok_to_delete(node_t *node, int found) {
+  return (node->full_linked && (node->top_layer == found) && !node->marked);
 }
 
 int pskiplist_remove(node_t *head, int key) {
