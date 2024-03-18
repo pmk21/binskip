@@ -169,7 +169,7 @@ Retry:
   next = (bst_node_t *)(*curr)->right;
   last_right = *curr;
   last_right_op = *curr_op;
-  while(ISNULL(next)) {
+  while(!ISNULL(next)) {
     *pred = *curr;
     *pred_op = *curr_op;
     *curr = next;
@@ -227,7 +227,7 @@ bool bst_add(bst_node_t *root, int key, void *val) {
     cas_op->child_cas_op.is_left = is_left;
     cas_op->child_cas_op.expected = old;
     cas_op->child_cas_op.update = new_node;
-    if (CAS_PTR(&curr_op, curr_op, FLAG(cas_op, STATE_CHILDCAS)) == curr_op) {
+    if (CAS_PTR(&curr->op, curr_op, FLAG(cas_op, STATE_CHILDCAS)) == curr_op) {
       bst_help_child_cas(root, cas_op, curr);
       return true;
     }
@@ -268,4 +268,15 @@ void *bst_remove(bst_node_t *root, int key) {
           return res;
     }
   }
+}
+
+void bst_print(volatile bst_node_t *node) {
+  if (ISNULL(node))
+    return;
+
+  bst_print(node->left);
+  printf("key: %d ", node->key);
+  printf("address: %p ", node);
+  printf("left: %p; right: %p; op: %p \n", node->left, node->right, node->op);
+  bst_print(node->right);
 }
