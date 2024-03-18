@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 
+#include "bst.h"
 #include "skiplist.h"
 #include "test.h"
 
@@ -17,7 +18,8 @@ static void seed_rand(int seed) {
 int main() {
 
   // test_insert_get();
-  test_parallel_insert_get();
+  // test_parallel_insert_get();
+  test_bst_parallel_insert_get();
 
   return 0;
 }
@@ -98,4 +100,31 @@ void test_parallel_insert_get(void) {
     pthread_join(ptids[i], &status);
   }
   skiplist_display(head);
+}
+
+static void *test_bst_thread(void *root) {
+  int key = my_random(-100000, 100000);
+  int rkey = my_random(-100000, 100000);
+  printf("Key : %d\n", key);
+  bst_add(root, key, "test");
+  printf("RKey : %d\n", rkey);
+  bst_remove(root, rkey);
+  pthread_exit(root);
+}
+
+void test_bst_parallel_insert_get(void) {
+  bst_node_t *root = bst_initialize();
+  int num_thread = 5;
+  pthread_t ptids[num_thread];
+
+  seed_rand(2024);
+  bst_add(root, INT_MIN + 1, "test");
+  bst_add(root, INT_MAX, "test");
+  for (int i = 0; i < num_thread; i++) {
+    pthread_create(&ptids[i], NULL, test_bst_thread, root);
+  }
+  for (int i = 0; i < num_thread; i++) {
+    pthread_join(ptids[i], NULL);
+  }
+  bst_print(root);
 }
