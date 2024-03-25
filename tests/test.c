@@ -1,7 +1,9 @@
 #include <assert.h>
+#include <bits/pthreadtypes.h>
 #include <stdio.h>
 #include <limits.h>
 #include <stdlib.h>
+#include <popt.h>
 #include <pthread.h>
 
 #include "bst.h"
@@ -15,13 +17,143 @@ static void seed_rand(int seed) {
     srand((unsigned int)seed);
 }
 
-int main() {
+int main(int argc, const char *argv[]) {
+  char c;
+  int num_threads;
+  test_options_t test_options = { 0, 2, 0, 0, 50, 50, 0 };
+  poptContext opt_con;
+  /* Options that we need to accept:
+   * 1. Which data structure to test? sl or bst 
+   * 2. Number of threads
+   * 3. Number of operations 
+   * 4. Range of randomly generated keys 
+   * 5. Percent of get operations
+   * 6. Percent of add operations
+   * 7. Percent of remove operations
+   */
+  struct poptOption options_table[] = {
+    { "sl", 'l', POPT_ARG_NONE, &test_options.test_skip_list, 0,
+      "Run the test for the skip list data structure", NULL },
+    { "num-threads", 't', POPT_ARG_INT, &test_options.num_threads, 0,
+      "Number of threads to use", "NUM_THREADS" },
+    { "num-ops", 'i', POPT_ARG_INT, &test_options.total_num_ops, 0,
+      "Total number of operations to perform in each thread", "NUM_OPERATIONS" },
+    { "key-range", 'k', POPT_ARG_INT, &test_options.key_range, 0,
+      "Max value of keys. Maximum allowed=INT_MAX", "RANGE" },
+    { "get-percent", 'g', POPT_ARG_INT, &test_options.pct_get_ops, 0,
+      "Percentage of get operations", "PERCENT" },
+    { "add-percent", 'a', POPT_ARG_INT, &test_options.pct_add_ops, 0,
+      "Percentage of add operations", "PERCENT" },
+    { "remove-percent", 'r', POPT_ARG_INT, &test_options.pct_remove_ops, 0,
+      "Percentage of remove operations", "PERCENT" },
+    POPT_AUTOHELP
+    { NULL, 0, 0, NULL, 0 }
+  };
+
+  opt_con = poptGetContext(NULL, argc, argv, options_table, 0);
+  if (argc < 2) {
+    poptPrintUsage(opt_con, stderr, 0);
+    exit(1);
+  }
+  /* Perform options parsing */
+  while ((c = poptGetNextOpt(opt_con)) >= 0) {
+    switch (c) {
+      case 'l':
+        break;
+      case 't':
+        break;
+      case 'i':
+        break;
+      case 'k':
+        break;
+      case 'g':
+        break;
+      case 'a':
+        break;
+      case 'r':
+        break;
+      default:
+        poptPrintUsage(opt_con, stderr, 0);
+        break;
+    }
+  }
+  if (c < -1) {
+    /* Error occured during options processing */
+    fprintf(stderr, "%s: %s\n", poptBadOption(opt_con, POPT_BADOPTION_NOALIAS), poptStrerror(c));
+    return 1;
+  }
+  if ((test_options.pct_get_ops + test_options.pct_add_ops + test_options.pct_remove_ops) != 100) {
+    printf("Summation of operations percentages is not 0! Setting default values.\n");
+  }
+  num_threads = test_options.num_threads;
+
+  printf("Options chosen:\n");
+  printf("Testing data structure: %s\n", test_options.test_skip_list ? "skiplist" : "binary search tree");
+  printf("No. of threads: %d\n", test_options.num_threads);
+  printf("No. of operations: %d\n", test_options.total_num_ops);
+  printf("Highest key value: %d\n", test_options.key_range);
+  printf("Percentage of get operations: %d%%\n", test_options.pct_get_ops);
+  printf("Percentage of add operations: %d%%\n", test_options.pct_add_ops);
+  printf("Percentage of remove operations: %d%%\n", test_options.pct_remove_ops);
+
+  seed_rand(2024);
+  pthread_t threads[num_threads];
+  int rc;
+  void *status;
+  thread_data_t *tds = malloc(num_threads * thread_data_s);
+  int t;
+
+  for (t = 0; t < num_threads; t++) {
+    tds[t].id = t;
+    tds[t].num_ops = test_options.total_num_ops;
+    tds[t].key_range = test_options.key_range;
+    tds[t].pct_get_ops = test_options.pct_get_ops;
+    tds[t].pct_add_ops = test_options.pct_add_ops;
+    tds[t].pct_remove_ops = test_options.pct_remove_ops;
+
+    if (test_options.test_skip_list)
+      rc = pthread_create(&threads[t], NULL, test_sl, &tds[t]);
+    else
+      rc = pthread_create(&threads[t], NULL, test_bst, &tds[t]);
+    if (rc) {
+      fprintf(stderr, "ERROR: pthread_create rc=%d\n", rc);
+      exit(-1);
+    }
+  }
+
+  for (t = 0; t < num_threads; t++) {
+    rc = pthread_join(threads[t], &status);
+    if (rc) {
+      fprintf(stderr, "ERROR: pthread_join rc=%d\n", rc);
+      exit(-1);
+    }
+  }
+  /* After all threads have completed, get the total time taken for all threads and divide by
+   * total number of operation completed by all of them.
+   */
+  double tot_time_spent = 0.0;
+  for (t = 0; t < num_threads; t++) {
+    tot_time_spent += tds[t].time_spent;
+  }
+  printf("Total time taken by all the threads: %0.4f\n", tot_time_spent);
+  printf("Total average throughput: %0.4f\n", (tot_time_spent)/num_threads);
 
   // test_insert_get();
   // test_parallel_insert_get();
-  test_bst_parallel_insert_get();
-
+  // test_bst_parallel_insert_get();
+  free(tds);
+  poptFreeContext(opt_con);
   return 0;
+}
+
+void *test_sl(void *thread) {
+  int i;
+  thread_data_t *td = (thread_data_t *)thread;
+  pthread_exit(NULL);
+}
+
+void *test_bst(void * tds) {
+  pthread_exit(NULL);
 }
 
 void test_insert_get() {

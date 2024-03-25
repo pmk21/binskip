@@ -3,15 +3,15 @@ INCDIR = ../include/
 LIBDIR = ../lib/
 CFLAGS += -g -Wall -O2 -I$(INCDIR)
 LDFLAGS += -L$(LIBDIR)
-LDFLAGS += -lpthread -lskiplist -lbst
+LDFLAGS += -lpthread -lskiplist -lbst -lpopt
 
 .PHONY: all
 
-all: run_tests
+all: tests
 
-run_tests: tests
-	@echo "Running all tests..."
-	./tests
+# run_tests: tests
+# 	@echo "Running all tests..."
+# 	./tests
 
 tests: test.c test.h
 	$(CC) -o tests test.c $(CFLAGS) $(LDFLAGS)
