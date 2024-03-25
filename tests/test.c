@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <popt.h>
 #include <pthread.h>
+#include <time.h>
 
 #include "bst.h"
 #include "skiplist.h"
@@ -13,8 +14,10 @@
 int rand_seed = 0;
 
 static void seed_rand(int seed) {
-  if (!rand_seed)
+  if (!rand_seed) {
     srand((unsigned int)seed);
+    srand48((long)seed);
+  }
 }
 
 int main(int argc, const char *argv[]) {
@@ -102,6 +105,18 @@ int main(int argc, const char *argv[]) {
   void *status;
   thread_data_t *tds = malloc(num_threads * thread_data_s);
   int t;
+  node_t *head = NULL;
+  bst_node_t *root = NULL;
+
+  if (test_options.test_skip_list) {
+    head = skiplist_init();
+    pskiplist_insert(head, INT_MIN, "test");
+    pskiplist_insert(head, INT_MAX, "test");
+  } else {
+    root = bst_initialize();
+    bst_add(root, INT_MIN + 1, "test");
+    bst_add(root, INT_MAX, "test");
+  }
 
   for (t = 0; t < num_threads; t++) {
     tds[t].id = t;
@@ -110,6 +125,10 @@ int main(int argc, const char *argv[]) {
     tds[t].pct_get_ops = test_options.pct_get_ops;
     tds[t].pct_add_ops = test_options.pct_add_ops;
     tds[t].pct_remove_ops = test_options.pct_remove_ops;
+    if (test_options.test_skip_list)
+      tds[t].head_or_root = head;
+    else
+      tds[t].head_or_root = root;
 
     if (test_options.test_skip_list)
       rc = pthread_create(&threads[t], NULL, test_sl, &tds[t]);
@@ -134,6 +153,8 @@ int main(int argc, const char *argv[]) {
   double tot_time_spent = 0.0;
   for (t = 0; t < num_threads; t++) {
     tot_time_spent += tds[t].time_spent;
+    printf("Thread ID: %d add_ops: %d get_ops: %d remove_ops: %d\n",
+           tds[t].id, tds[t].num_op_add, tds[t].num_op_get, tds[t].num_op_remove);
   }
   printf("Total time taken by all the threads: %0.4f\n", tot_time_spent);
   printf("Total average throughput: %0.4f\n", (tot_time_spent)/num_threads);
@@ -146,13 +167,82 @@ int main(int argc, const char *argv[]) {
   return 0;
 }
 
-void *test_sl(void *thread) {
+static int double_compare(const void *e1, const void *e2) {
+  double x = ((op_weight_t *)e1)->weight;
+  double y = ((op_weight_t *)e2)->weight;
+  if (x < y)
+    return -1;
+  return x > y;
+}
+
+/* Function design referred from https://stackoverflow.com/questions/4463561/weighted-random-selection-from-array */
+static ds_op_type_e get_rand_op_with_dist(op_weight_t *cdf_arr) {
   int i;
+  double randd = drand48();
+
+  for (i = 0; i < 3; i++) {
+    if (randd < cdf_arr[i].weight)
+      return cdf_arr[i].op_type;
+  }
+  return cdf_arr[2].op_type;
+}
+
+static int my_random(int low, int high) {
+  double my_rand = rand() / (1.0 + RAND_MAX);
+  int range = high - low + 1;
+
+  return (my_rand * range) + low;
+}
+
+void *test_sl(void *thread) {
+  int i, key, range, num_op_add = 0, num_op_get = 0, num_op_remove = 0;
+  ds_op_type_e op_type;
+  clock_t begin, end;
   thread_data_t *td = (thread_data_t *)thread;
+  op_weight_t cdf_arr[] = {
+    { td->pct_add_ops/100.0, ADD },
+    { td->pct_get_ops/100.0, GET },
+    { td->pct_remove_ops/100.0, REMOVE }
+  };
+  node_t *head = (node_t *)td->head_or_root;
+  
+  range = td->key_range;
+  qsort(cdf_arr, 3, op_weight_s, double_compare);
+
+  begin = clock();
+  for (i = 0; i < td->num_ops; i++) {
+    key = my_random(0, range);
+    op_type = get_rand_op_with_dist(cdf_arr);
+    switch (op_type) {
+      case ADD:
+        pskiplist_insert(head, key, TEST_VALUE);
+        num_op_add++;
+        break;
+      case GET:
+        pskiplist_get(head, key);
+        num_op_get++;
+        break;
+      case REMOVE:
+        pskiplist_remove(head, key);
+        num_op_remove++;
+        break;
+      default:
+        pskiplist_get(head, key);
+        break;
+    }
+  }
+  end = clock();
+
+  td->clk_begin = begin;
+  td->clk_end = end;
+  td->time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+  td->num_op_add = num_op_add;
+  td->num_op_get = num_op_get;
+  td->num_op_remove = num_op_remove;
   pthread_exit(NULL);
 }
 
-void *test_bst(void * tds) {
+void *test_bst(void *tds) {
   pthread_exit(NULL);
 }
 
@@ -192,12 +282,7 @@ void test_insert_get() {
   printf("findNode: %d\n", skiplist_find_node(head, INT_MAX, preds, succs));
 }
 
-static int my_random(int low, int high) {
-  double my_rand = rand() / (1.0 + RAND_MAX);
-  int range = high - low + 1;
 
-  return (my_rand * range) + low;
-}
 
 static void* test_thr(void *head) {
   int key = my_random(-100000, 100000);
