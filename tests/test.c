@@ -173,10 +173,10 @@ int main(int argc, const char *argv[]) {
   int size;
   if (test_options.test_skip_list) {
     size = pskiplist_size(head);
-    printf("Skiplist memory utilization: %lu\n", size * node_s);
+    printf("Skiplist memory utilization: %lu bytes\n", size * node_s);
   } else {
     size = bst_size(root);
-    printf("Binary search tree memory utilization: %lu\n", size * bst_node_s);
+    printf("Binary search tree memory utilization: %lu bytes\n", size * bst_node_s);
   }
 
   // test_insert_get();
@@ -269,7 +269,6 @@ void *test_bst(void *thread) {
   for (i = 0; i < td->num_ops; i++) {
     key = my_random(0, range);
     op_type = get_rand_op_with_dist(cdf_arr);
-    printf("key: %d i: %d op_type: %d\n", key, i, op_type);
     switch (op_type) {
       case ADD:
         bst_add(root, key, TEST_VALUE);
