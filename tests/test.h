@@ -12,6 +12,8 @@ typedef struct test_options {
   int pct_get_ops;
   int pct_add_ops;
   int pct_remove_ops;
+
+  char *out_csv;
 } test_options_t;
 
 typedef struct thread_data {

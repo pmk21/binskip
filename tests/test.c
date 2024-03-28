@@ -52,6 +52,10 @@ int main(int argc, const char *argv[]) {
       "Percentage of add operations", "PERCENT" },
     { "remove-percent", 'r', POPT_ARG_INT, &test_options.pct_remove_ops, 0,
       "Percentage of remove operations", "PERCENT" },
+    { "csv", 'c', POPT_ARG_STRING, &test_options.out_csv, 0,
+      "Generate comma separated output values to the given file in append mode"
+      " Format will be: data_structure, num_threads, num_ops, key_max_value,"
+      " pct_get, pct_add, pct_remove, throughput, memory_utilization.", "FILEPATH" },
     POPT_AUTOHELP
     POPT_TABLEEND
   };
@@ -171,12 +175,33 @@ int main(int argc, const char *argv[]) {
   printf("Total time taken by all the threads: %0.4f\n", tot_time_spent);
   printf("Total average throughput: %0.4f\n", (tot_time_spent)/num_threads);
   int size;
+  size_t mem_size;
   if (test_options.test_skip_list) {
     size = pskiplist_size(head);
-    printf("Skiplist memory utilization: %lu bytes\n", size * node_s);
+    mem_size = size * node_s;
+    printf("Skiplist memory utilization: %lu bytes\n", mem_size);
   } else {
     size = bst_size(root);
-    printf("Binary search tree memory utilization: %lu bytes\n", size * bst_node_s);
+    mem_size = size * bst_node_s;
+    printf("Binary search tree memory utilization: %lu bytes\n", mem_size);
+  }
+
+  if (test_options.out_csv != NULL) {
+    char *filepath = test_options.out_csv;
+    FILE *fp;
+
+    fp = fopen(filepath, "a");
+    fprintf(fp, "%s,%d,%d,%d,%d,%d,%d,%0.4f,%lu\n",
+            test_options.test_skip_list ? "sl" : "bst",
+            num_threads,
+            test_options.total_num_ops,
+            test_options.key_range,
+            test_options.pct_get_ops,
+            test_options.pct_add_ops,
+            test_options.pct_remove_ops,
+            (tot_time_spent)/num_threads,
+            mem_size);
+    fclose(fp);
   }
 
   // test_insert_get();
