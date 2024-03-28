@@ -393,7 +393,7 @@ int pskiplist_size(node_t *head) {
   while (curr->next[0] != NULL) {
     if (curr->full_linked && !curr->marked)
       size++;
-    curr = curr->next;
+    curr = curr->next[0];
   }
 
   return size;
