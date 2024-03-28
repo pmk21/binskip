@@ -280,3 +280,16 @@ void bst_print(volatile bst_node_t *node) {
   printf("left: %p; right: %p; op: %p \n", node->left, node->right, node->op);
   bst_print(node->right);
 }
+
+unsigned long bst_size_rec(volatile bst_node_t *node) {
+  if (ISNULL(node))
+    return 0;
+  else if (GETFLAG(node->op) != STATE_MARK)
+    return 1 + bst_size_rec(node->right) + bst_size_rec(node->left);
+  else
+    return bst_size_rec(node->right) + bst_size_rec(node->left);
+}
+
+unsigned long bst_size(bst_node_t *root) {
+  return bst_size_rec(root) - 1;
+}

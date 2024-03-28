@@ -13,6 +13,9 @@
 
 int rand_seed = 0;
 
+/* Util functions */
+static int double_compare(const void *e1, const void *e2);
+
 static void seed_rand(int seed) {
   if (!rand_seed) {
     srand((unsigned int)seed);
@@ -50,7 +53,7 @@ int main(int argc, const char *argv[]) {
     { "remove-percent", 'r', POPT_ARG_INT, &test_options.pct_remove_ops, 0,
       "Percentage of remove operations", "PERCENT" },
     POPT_AUTOHELP
-    { NULL, 0, 0, NULL, 0 }
+    POPT_TABLEEND
   };
 
   opt_con = poptGetContext(NULL, argc, argv, options_table, 0);
@@ -86,7 +89,7 @@ int main(int argc, const char *argv[]) {
     return 1;
   }
   if ((test_options.pct_get_ops + test_options.pct_add_ops + test_options.pct_remove_ops) != 100) {
-    printf("Summation of operations percentages is not 0! Setting default values.\n");
+    printf("Summation of operations percentages is not 100! Setting default values.\n");
   }
   num_threads = test_options.num_threads;
 
@@ -118,6 +121,14 @@ int main(int argc, const char *argv[]) {
     bst_add(root, INT_MAX, "test");
   }
 
+  op_weight_t cdf_arr[] = {
+    { test_options.pct_add_ops/100.0, ADD },
+    { test_options.pct_get_ops/100.0, GET },
+    { test_options.pct_remove_ops/100.0, REMOVE }
+  };
+  cdf_arr[1].weight += cdf_arr[0].weight;
+  cdf_arr[2].weight += cdf_arr[1].weight;
+  // qsort(cdf_arr, 3, op_weight_s, double_compare);
   for (t = 0; t < num_threads; t++) {
     tds[t].id = t;
     tds[t].num_ops = test_options.total_num_ops;
@@ -125,6 +136,7 @@ int main(int argc, const char *argv[]) {
     tds[t].pct_get_ops = test_options.pct_get_ops;
     tds[t].pct_add_ops = test_options.pct_add_ops;
     tds[t].pct_remove_ops = test_options.pct_remove_ops;
+    tds[t].cdf_arr = cdf_arr;
     if (test_options.test_skip_list)
       tds[t].head_or_root = head;
     else
@@ -158,6 +170,14 @@ int main(int argc, const char *argv[]) {
   }
   printf("Total time taken by all the threads: %0.4f\n", tot_time_spent);
   printf("Total average throughput: %0.4f\n", (tot_time_spent)/num_threads);
+  int size;
+  if (test_options.test_skip_list) {
+    size = pskiplist_size(head);
+    printf("Skiplist memory utilization: %lu\n", size * node_s);
+  } else {
+    size = bst_size(root);
+    printf("Binary search tree memory utilization: %lu\n", size * bst_node_s);
+  }
 
   // test_insert_get();
   // test_parallel_insert_get();
@@ -181,7 +201,7 @@ static ds_op_type_e get_rand_op_with_dist(op_weight_t *cdf_arr) {
   double randd = drand48();
 
   for (i = 0; i < 3; i++) {
-    if (randd < cdf_arr[i].weight)
+    if (randd <= cdf_arr[i].weight)
       return cdf_arr[i].op_type;
   }
   return cdf_arr[2].op_type;
@@ -199,16 +219,10 @@ void *test_sl(void *thread) {
   ds_op_type_e op_type;
   clock_t begin, end;
   thread_data_t *td = (thread_data_t *)thread;
-  op_weight_t cdf_arr[] = {
-    { td->pct_add_ops/100.0, ADD },
-    { td->pct_get_ops/100.0, GET },
-    { td->pct_remove_ops/100.0, REMOVE }
-  };
   node_t *head = (node_t *)td->head_or_root;
+  op_weight_t *cdf_arr = td->cdf_arr;
   
   range = td->key_range;
-  qsort(cdf_arr, 3, op_weight_s, double_compare);
-
   begin = clock();
   for (i = 0; i < td->num_ops; i++) {
     key = my_random(0, range);
@@ -242,7 +256,46 @@ void *test_sl(void *thread) {
   pthread_exit(NULL);
 }
 
-void *test_bst(void *tds) {
+void *test_bst(void *thread) {
+  int i, key, range, num_op_add = 0, num_op_get = 0, num_op_remove = 0;
+  ds_op_type_e op_type;
+  clock_t begin, end;
+  thread_data_t *td = (thread_data_t *)thread;
+  bst_node_t *root = (bst_node_t *)td->head_or_root;
+  op_weight_t *cdf_arr = td->cdf_arr;
+  
+  range = td->key_range;
+  begin = clock();
+  for (i = 0; i < td->num_ops; i++) {
+    key = my_random(0, range);
+    op_type = get_rand_op_with_dist(cdf_arr);
+    printf("key: %d i: %d op_type: %d\n", key, i, op_type);
+    switch (op_type) {
+      case ADD:
+        bst_add(root, key, TEST_VALUE);
+        num_op_add++;
+        break;
+      case GET:
+        bst_contains(root, key);
+        num_op_get++;
+        break;
+      case REMOVE:
+        bst_remove(root, key);
+        num_op_remove++;
+        break;
+      default:
+        bst_contains(root, key);
+        break;
+    }
+  }
+  end = clock();
+
+  td->clk_begin = begin;
+  td->clk_end = end;
+  td->time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+  td->num_op_add = num_op_add;
+  td->num_op_get = num_op_get;
+  td->num_op_remove = num_op_remove;
   pthread_exit(NULL);
 }
 

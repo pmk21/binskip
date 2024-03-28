@@ -39,5 +39,6 @@ void pskiplist_destroy(node_t *head);
 int pskiplist_insert(node_t *head, int key, void *value);
 void *pskiplist_get(node_t *head, int key);
 int pskiplist_remove(node_t *head, int key);
+int pskiplist_size(node_t *head);
 
 #endif

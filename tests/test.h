@@ -23,6 +23,8 @@ typedef struct thread_data {
   int pct_add_ops;
   int pct_remove_ops;
   void *head_or_root;
+  /* Sorted array of weight and corresponding operation */
+  struct op_weight *cdf_arr;
 
   /* Data returned from the thread */
   clock_t clk_begin;

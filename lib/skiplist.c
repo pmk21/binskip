@@ -385,3 +385,16 @@ void *pskiplist_get(node_t *head, int key) {
   return result;
 }
 
+int pskiplist_size(node_t *head) {
+  int size = 0;
+  node_t *curr;
+
+  curr = head->next[0];
+  while (curr->next[0] != NULL) {
+    if (curr->full_linked && !curr->marked)
+      size++;
+    curr = curr->next;
+  }
+
+  return size;
+}

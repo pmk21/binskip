@@ -89,5 +89,6 @@ void *bst_find(bst_node_t *root, int key, bst_node_t **pred, operation_t **pred_
 bool bst_add(bst_node_t *root, int key, void *val);
 void *bst_remove(bst_node_t *root, int key);
 void bst_print(volatile bst_node_t *node);
+unsigned long bst_size(bst_node_t *root);
 
 #endif
