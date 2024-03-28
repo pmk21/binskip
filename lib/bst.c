@@ -32,6 +32,7 @@ static bst_node_t *bst_create_node(int key, void *val) {
   new_node->left = NULL;
   new_node->right = NULL;
 
+  asm volatile("" ::: "memory");
   return (bst_node_t *)new_node;
 }
 
@@ -96,7 +97,7 @@ static void bst_help_marked(bst_node_t *root, bst_node_t *pred, operation_t *pre
   cas_op->child_cas_op.expected = curr;
   cas_op->child_cas_op.update = new_ref;
 
-  if (CAS_PTR(&(pred->op), pred_op, FLAG(cas_op, STATE_CHILDCAS) == pred_op))
+  if (CAS_PTR(&(pred->op), pred_op, FLAG(cas_op, STATE_CHILDCAS)) == pred_op)
     bst_help_child_cas(root, cas_op, pred);
 }
 
