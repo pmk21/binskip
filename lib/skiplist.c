@@ -1,14 +1,44 @@
+#include <immintrin.h>
 #include <limits.h>
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <time.h>
+#include <gmp.h>
 
 #include "skiplist.h"
 
 int rng_seed = 0;
+gmp_randstate_t gmp_state;
+
+static inline void nop_rep(uint32_t num_reps) {
+  uint32_t i;
+  for (i = 0; i < num_reps; i++) {
+	asm volatile ("");
+  }
+}
+
+static inline int get_rand_level(int max) {
+  int i, level = 1;
+  mpz_t rop, rnd_max;
+  unsigned int rval;
+
+  mpz_init_set_ui(rnd_max, 101);
+
+  mpz_init(rop);
+  for (i = 0; i < max - 1; i++) {
+    mpz_urandomm(rop, gmp_state, rnd_max);
+    rval = mpz_get_ui(rop);
+    if (rval < 50)
+      level++;
+    else
+      break;
+  }
+  return level;
+}
 
 static int geometric_level_generator(int max) {
   int result = 1;
@@ -19,17 +49,13 @@ static int geometric_level_generator(int max) {
   return result;
 }
 
-static void skiplist_free_node(node_t *node) {
-  free(node->value);
-  node->value = NULL;
-  free(node);
-}
-
 node_t *skiplist_init() {
   node_t *head = NULL;
 
   if (0 == rng_seed) {
     srand((unsigned int)2024);
+    gmp_randinit_default(gmp_state);
+    gmp_randseed_ui(gmp_state, 2024l);
     rng_seed = 1;
   }
   head = calloc(1, node_s);
@@ -38,8 +64,16 @@ node_t *skiplist_init() {
     return NULL;
   }
   head->top_layer = SKIPLIST_MAX_HEIGHT;
+  pthread_mutex_init(&head->lock, NULL);
 
   return head;
+}
+
+#if 0
+static void skiplist_free_node(node_t *node) {
+  free(node->value);
+  node->value = NULL;
+  free(node);
 }
 
 void skiplist_destroy(node_t *head) {
@@ -160,6 +194,7 @@ int skiplist_remove(node_t *head, int key) {
 
   return 1;
 }
+#endif
 
 void skiplist_display(node_t *head) {
   int level = head->top_layer - 1;
@@ -199,9 +234,12 @@ void skiplist_print(node_t *head) {
 }
 
 int skiplist_find_node(node_t *head, int key, node_t **preds, node_t **succs) {
-  node_t *curr = NULL;
-  int lfound = -1;
-  node_t *pred = head;
+  volatile node_t *curr, *pred;
+  int lfound;
+Restart:
+  curr = NULL;
+  pred = head;
+  lfound = -1;
 
   for (int layer = SKIPLIST_MAX_HEIGHT - 1; layer >= 0; layer--) {
     if (pred)
@@ -210,6 +248,11 @@ int skiplist_find_node(node_t *head, int key, node_t **preds, node_t **succs) {
     while (curr != NULL && key > curr->key) {
       pred = curr;
       curr = pred->next[layer];
+    }
+    if (preds != NULL) {
+      preds[layer] = pred;
+      if (pred->marked)
+        goto Restart;
     }
     
     if (lfound == -1 && curr != NULL && key == curr->key)
@@ -237,16 +280,21 @@ static inline void unlock_levels(node_t *head, node_t **nodes, int highest_level
 int pskiplist_insert(node_t *head, int key, void *value) {
   int lfound, layer, highest_locked = -1;
   int top_layer = geometric_level_generator(head->top_layer);
-  node_t *node_found, *preds[SKIPLIST_MAX_HEIGHT] = {NULL}, *succs[SKIPLIST_MAX_HEIGHT] = {NULL};
+  // int top_layer = get_rand_level(head->top_layer);
+  volatile node_t *node_found;
+  node_t *preds[SKIPLIST_MAX_HEIGHT] = {NULL}, *succs[SKIPLIST_MAX_HEIGHT] = {NULL};
   node_t *pred, *succ, *prev_pred, *new_node;
   bool valid;
+  unsigned int backoff = 1;
 
+  if (key == INT_MIN || key == INT_MAX)
+    top_layer = SKIPLIST_MAX_HEIGHT - 1;
   while (true) {
     lfound = skiplist_find_node(head, key, preds, succs);
     if (lfound != -1) {
       node_found = succs[lfound];
       if (!node_found->marked) {
-        while (!node_found->full_linked) {;}
+        while (!node_found->full_linked) {_mm_pause();}
         return 0;
       }
       continue;
@@ -269,6 +317,10 @@ int pskiplist_insert(node_t *head, int key, void *value) {
     }
     if (!valid) {
       unlock_levels(head, preds, highest_locked);
+      if (backoff > 5000) {
+        nop_rep(backoff & MAX_BACKOFF);
+      }
+      backoff <<= 1;
       continue;
     }
 
@@ -277,6 +329,7 @@ int pskiplist_insert(node_t *head, int key, void *value) {
     new_node->key = key;
     new_node->value = value;
     new_node->marked = false;
+    pthread_mutex_init(&new_node->lock, NULL);
     for (layer = 0; layer <= top_layer; layer++) {
       new_node->next[layer] = succs[layer];
       if (preds[layer])
@@ -297,10 +350,12 @@ int pskiplist_remove(node_t *head, int key) {
   node_t *node_todel, *prev_pred;
   node_t *pred, *succ;
   int is_marked, toplevel, highest_locked, i, valid, found;
+  unsigned int backoff;
 
   node_todel = NULL;
   is_marked = 0;
   toplevel = -1;
+  backoff = 1;
 
   while (true) {
     found = skiplist_find_node(head, key, preds, succs);
@@ -337,6 +392,10 @@ int pskiplist_remove(node_t *head, int key) {
 
       if (!valid) {
         unlock_levels(head, preds, highest_locked);
+        if (backoff > 5000) {
+          nop_rep(backoff & MAX_BACKOFF);
+        }
+        backoff <<= 1;
         continue;
       }
 

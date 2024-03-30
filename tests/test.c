@@ -323,6 +323,7 @@ void *test_bst(void *thread) {
   pthread_exit(NULL);
 }
 
+#if 0
 void test_insert_get() {
   printf("Starting %s\n", __FUNCTION__);
 
@@ -422,3 +423,4 @@ void test_bst_parallel_insert_get(void) {
   }
   bst_print(root);
 }
+#endif

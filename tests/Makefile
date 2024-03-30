@@ -3,7 +3,7 @@ INCDIR = ../include/
 LIBDIR = ../lib/
 CFLAGS += -g -Wall -O2 -I$(INCDIR)
 LDFLAGS += -L$(LIBDIR)
-LDFLAGS += -lpthread -lskiplist -lbst -lpopt
+LDFLAGS += -lpthread -lskiplist -lbst -lpopt -lgmp
 
 .PHONY: all
 
