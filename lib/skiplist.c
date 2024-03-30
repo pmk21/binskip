@@ -49,6 +49,24 @@ static int geometric_level_generator(int max) {
   return result;
 }
 
+static node_t *skiplist_new_node(int key, void *value, int level) {
+  node_t *new_node;
+
+  new_node = malloc(node_s);
+  if (NULL == new_node) {
+    printf("Out of memory.\n");
+    return NULL;
+  }
+  new_node->top_layer = level;
+  new_node->key = key;
+  new_node->value = value;
+  new_node->marked = false;
+  new_node->full_linked = false;
+  pthread_mutex_init(&new_node->lock, NULL);
+
+  return new_node;
+}
+
 node_t *skiplist_init() {
   node_t *head = NULL;
 
@@ -66,10 +84,12 @@ node_t *skiplist_init() {
   head->top_layer = SKIPLIST_MAX_HEIGHT;
   pthread_mutex_init(&head->lock, NULL);
 
+  skiplist_insert(head, INT_MIN, "");
+  skiplist_insert(head, INT_MAX, "");
+
   return head;
 }
 
-#if 0
 static void skiplist_free_node(node_t *node) {
   free(node->value);
   node->value = NULL;
@@ -141,9 +161,12 @@ int skiplist_insert(node_t *head, int key, void *value) {
     printf("Out of memory.\n");
     return 1;
   }
-  new_node->top_layer = geometric_level_generator(head->top_layer);
+  new_node->top_layer = (key == INT_MAX || key == INT_MIN) ? SKIPLIST_MAX_HEIGHT : geometric_level_generator(head->top_layer);
   new_node->key = key;
   new_node->value = value;
+  new_node->full_linked = true;
+  new_node->marked = false;
+  pthread_mutex_init(&new_node->lock, NULL);
   // Null out pointers above height
   for (i = SKIPLIST_MAX_HEIGHT - 1; i > new_node->top_layer; i--) {
     new_node->next[i] = NULL;
@@ -194,7 +217,6 @@ int skiplist_remove(node_t *head, int key) {
 
   return 1;
 }
-#endif
 
 void skiplist_display(node_t *head) {
   int level = head->top_layer - 1;
@@ -242,10 +264,9 @@ Restart:
   lfound = -1;
 
   for (int layer = SKIPLIST_MAX_HEIGHT - 1; layer >= 0; layer--) {
-    if (pred)
-      curr = pred->next[layer];
+    curr = pred->next[layer];
 
-    while (curr != NULL && key > curr->key) {
+    while (key > curr->key) {
       pred = curr;
       curr = pred->next[layer];
     }
@@ -255,11 +276,9 @@ Restart:
         goto Restart;
     }
     
-    if (lfound == -1 && curr != NULL && key == curr->key)
-      lfound = layer;
-
-    preds[layer] = pred;
     succs[layer] = curr;
+    if (lfound == -1 && key == curr->key)
+      lfound = layer;
   }
 
   return lfound;
@@ -270,7 +289,7 @@ static inline void unlock_levels(node_t *head, node_t **nodes, int highest_level
   node_t *old = NULL;
 
   for (i = 0; i <= highest_level; i++) {
-    if (old != nodes[i] && nodes[i] != NULL) {
+    if (old != nodes[i]) {
       UNLOCK_NODE(nodes[i]);
     }
     old = nodes[i];
@@ -305,15 +324,14 @@ int pskiplist_insert(node_t *head, int key, void *value) {
     for (layer = 0; valid && (layer <= top_layer); layer++) {
       pred = preds[layer];
       succ = succs[layer];
-      if (pred != NULL && pred != prev_pred) {
+      if (pred != prev_pred) {
         pthread_mutex_lock(&pred->lock);
         highest_locked = layer;
         prev_pred = pred;
       }
       /* NOTE: valid should not be changed until and unless pred and succ are not NULL */
-      if (pred != NULL && succ != NULL) 
-        valid = ((pred != NULL) && (succ != NULL) && !pred->marked && !succ->marked &&
-          (volatile node_t *)pred->next[layer] == (volatile node_t *)succ);
+      valid = (!pred->marked && !succ->marked &&
+        (volatile node_t *)pred->next[layer] == (volatile node_t *)succ);
     }
     if (!valid) {
       unlock_levels(head, preds, highest_locked);
@@ -324,16 +342,10 @@ int pskiplist_insert(node_t *head, int key, void *value) {
       continue;
     }
 
-    new_node = malloc(node_s);
-    new_node->top_layer = top_layer;
-    new_node->key = key;
-    new_node->value = value;
-    new_node->marked = false;
-    pthread_mutex_init(&new_node->lock, NULL);
+    new_node = skiplist_new_node(key, value, top_layer);
     for (layer = 0; layer <= top_layer; layer++) {
       new_node->next[layer] = succs[layer];
-      if (preds[layer])
-        preds[layer]->next[layer] = new_node;
+      preds[layer]->next[layer] = new_node;
     }
     new_node->full_linked = true;
     unlock_levels(head, preds, highest_locked);
@@ -378,7 +390,7 @@ int pskiplist_remove(node_t *head, int key) {
       highest_locked = -1;
       prev_pred = NULL;
       valid = 1;
-      for (i = 0; valid && (i < toplevel); i++) {
+      for (i = 0; valid && (i <= toplevel); i++) {
         pred = preds[i];
         succ = succs[i];
         if (pred != prev_pred) {
@@ -400,8 +412,7 @@ int pskiplist_remove(node_t *head, int key) {
       }
 
       for (i = toplevel; i >= 0; i--) {
-        if (preds[i] != NULL)
-          preds[i]->next[i] = node_todel->next[i];
+        preds[i]->next[i] = node_todel->next[i];
       }
 
       UNLOCK_NODE(node_todel);

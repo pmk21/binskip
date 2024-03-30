@@ -30,11 +30,9 @@ int skiplist_find_node(node_t *head, int key, node_t **preds, node_t **succs);
 
 /* Basic skip list */
 node_t *skiplist_init(void);
-#if 0
 void skiplist_destroy(node_t *head);
 int skiplist_insert(node_t *head, int key, void *value);
 void *skiplist_get(node_t *head, int key);
-#endif
 
 /* Concurrent skip list */
 node_t *pskiplist_init(void);

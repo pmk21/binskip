@@ -55,7 +55,7 @@ int main(int argc, const char *argv[]) {
     { "csv", 'c', POPT_ARG_STRING, &test_options.out_csv, 0,
       "Generate comma separated output values to the given file in append mode"
       " Format will be: data_structure, num_threads, num_ops, key_max_value,"
-      " pct_get, pct_add, pct_remove, throughput, memory_utilization.", "FILEPATH" },
+      " pct_get, pct_add, pct_remove, throughput(ops/millisecond), memory_utilization.", "FILEPATH" },
     POPT_AUTOHELP
     POPT_TABLEEND
   };
@@ -117,8 +117,6 @@ int main(int argc, const char *argv[]) {
 
   if (test_options.test_skip_list) {
     head = skiplist_init();
-    pskiplist_insert(head, INT_MIN, "test");
-    pskiplist_insert(head, INT_MAX, "test");
   } else {
     root = bst_initialize();
     bst_add(root, INT_MIN + 1, "test");
@@ -167,12 +165,16 @@ int main(int argc, const char *argv[]) {
    * total number of operation completed by all of them.
    */
   double tot_time_spent = 0.0;
+  double tot_avg_ops = 0.0;
   for (t = 0; t < num_threads; t++) {
     tot_time_spent += tds[t].time_spent;
-    printf("Thread ID: %d add_ops: %d get_ops: %d remove_ops: %d\n",
-           tds[t].id, tds[t].num_op_add, tds[t].num_op_get, tds[t].num_op_remove);
+    tot_avg_ops += test_options.total_num_ops / tds[t].time_spent;
+    printf("Thread ID: %d time_spend:%0.4f add_ops: %d get_ops: %d remove_ops: %d ops/sec: %0.4f\n",
+           tds[t].id, tds[t].time_spent, tds[t].num_op_add, tds[t].num_op_get, tds[t].num_op_remove,
+           test_options.total_num_ops / tds[t].time_spent);
   }
   printf("Total time taken by all the threads: %0.4f\n", tot_time_spent);
+  printf("Total average ops/millisecond of all the threads: %0.4f\n", tot_avg_ops/num_threads);
   printf("Total average throughput: %0.4f\n", (tot_time_spent)/num_threads);
   int size;
   size_t mem_size;
@@ -199,7 +201,7 @@ int main(int argc, const char *argv[]) {
             test_options.pct_get_ops,
             test_options.pct_add_ops,
             test_options.pct_remove_ops,
-            (tot_time_spent)/num_threads,
+            tot_avg_ops/num_threads,
             mem_size);
     fclose(fp);
   }
