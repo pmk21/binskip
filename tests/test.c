@@ -13,9 +13,6 @@
 
 int rand_seed = 0;
 
-/* Util functions */
-static int double_compare(const void *e1, const void *e2);
-
 static void seed_rand(int seed) {
   if (!rand_seed) {
     srand((unsigned int)seed);
@@ -28,15 +25,6 @@ int main(int argc, const char *argv[]) {
   int num_threads;
   test_options_t test_options = { 0, 2, 0, 0, 50, 50, 0 };
   poptContext opt_con;
-  /* Options that we need to accept:
-   * 1. Which data structure to test? sl or bst 
-   * 2. Number of threads
-   * 3. Number of operations 
-   * 4. Range of randomly generated keys 
-   * 5. Percent of get operations
-   * 6. Percent of add operations
-   * 7. Percent of remove operations
-   */
   struct poptOption options_table[] = {
     { "sl", 'l', POPT_ARG_NONE, &test_options.test_skip_list, 0,
       "Run the test for the skip list data structure", NULL },
@@ -130,7 +118,6 @@ int main(int argc, const char *argv[]) {
   };
   cdf_arr[1].weight += cdf_arr[0].weight;
   cdf_arr[2].weight += cdf_arr[1].weight;
-  // qsort(cdf_arr, 3, op_weight_s, double_compare);
   for (t = 0; t < num_threads; t++) {
     tds[t].id = t;
     tds[t].num_ops = test_options.total_num_ops;
@@ -174,8 +161,10 @@ int main(int argc, const char *argv[]) {
            test_options.total_num_ops / tds[t].time_spent);
   }
   printf("Total time taken by all the threads: %0.4f\n", tot_time_spent);
-  printf("Total average ops/millisecond of all the threads: %0.4f\n", tot_avg_ops/num_threads);
-  printf("Total average throughput: %0.4f\n", (tot_time_spent)/num_threads);
+  printf("Total average ops/sec of all the threads: %0.4f\n", tot_avg_ops/num_threads);
+  printf("Total average time spent per thread: %0.4f\n", (tot_time_spent)/num_threads);
+  printf("Total average throughput: %0.4f\n", (double)(test_options.total_num_ops * test_options.num_threads)/(tot_time_spent));
+
   int size;
   size_t mem_size;
   if (test_options.test_skip_list) {
@@ -212,14 +201,6 @@ int main(int argc, const char *argv[]) {
   free(tds);
   poptFreeContext(opt_con);
   return 0;
-}
-
-static int double_compare(const void *e1, const void *e2) {
-  double x = ((op_weight_t *)e1)->weight;
-  double y = ((op_weight_t *)e2)->weight;
-  if (x < y)
-    return -1;
-  return x > y;
 }
 
 /* Function design referred from https://stackoverflow.com/questions/4463561/weighted-random-selection-from-array */
