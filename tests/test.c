@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <bits/pthreadtypes.h>
+#include <bits/time.h>
 #include <stdio.h>
 #include <limits.h>
 #include <stdlib.h>
@@ -102,6 +103,7 @@ int main(int argc, const char *argv[]) {
   int t;
   node_t *head = NULL;
   bst_node_t *root = NULL;
+  struct timespec start, end;
 
   if (test_options.test_skip_list) {
     head = skiplist_init();
@@ -118,6 +120,7 @@ int main(int argc, const char *argv[]) {
   };
   cdf_arr[1].weight += cdf_arr[0].weight;
   cdf_arr[2].weight += cdf_arr[1].weight;
+  clock_gettime(CLOCK_MONOTONIC, &start);
   for (t = 0; t < num_threads; t++) {
     tds[t].id = t;
     tds[t].num_ops = test_options.total_num_ops;
@@ -148,6 +151,8 @@ int main(int argc, const char *argv[]) {
       exit(-1);
     }
   }
+  clock_gettime(CLOCK_MONOTONIC, &end);
+  uint64_t diff = 1000000000l * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec;
   /* After all threads have completed, get the total time taken for all threads and divide by
    * total number of operation completed by all of them.
    */
@@ -161,9 +166,9 @@ int main(int argc, const char *argv[]) {
            test_options.total_num_ops / tds[t].time_spent);
   }
   printf("Total time taken by all the threads: %0.4f\n", tot_time_spent);
-  printf("Total average ops/sec of all the threads: %0.4f\n", tot_avg_ops/num_threads);
   printf("Total average time spent per thread: %0.4f\n", (tot_time_spent)/num_threads);
-  printf("Total average throughput: %0.4f\n", (double)(test_options.total_num_ops * test_options.num_threads)/(tot_time_spent));
+  printf("Total average throughput per thread: %0.4f\n", (double)(test_options.total_num_ops * test_options.num_threads)/(tot_time_spent));
+  printf("Total throughput(operations/second): %0.4f\n", (double)(test_options.total_num_ops * test_options.num_threads * 1000000000l)/diff);
 
   int size;
   size_t mem_size;
@@ -190,7 +195,7 @@ int main(int argc, const char *argv[]) {
             test_options.pct_get_ops,
             test_options.pct_add_ops,
             test_options.pct_remove_ops,
-            tot_avg_ops/num_threads,
+            (double)(test_options.total_num_ops * test_options.num_threads * 1000000000l)/diff,
             mem_size);
     fclose(fp);
   }
