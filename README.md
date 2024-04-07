@@ -5,21 +5,21 @@ A thorough comparison of a concurrent binary search tree and skip list.
 ## Instructions to Run
 
 - **Prerequisites**:
-    - GCC >= 13.2.1 (There are some `x86_64` machine specific instructions, might not work on Windows or Mac)
-    - Python >= 3.11.8
-    - Jupyter Lab/Notebooks
-    - Pandas
-    - Matplotlib
-    - scipy
+    - GCC >= 13.2.1 (There are some `x86_64` machine specific instructions which might not work on Windows or Mac).
+    - Python >= 3.11.8.
+    - Jupyter Lab/Notebook.
+    - Pandas.
+    - Matplotlib.
+    - scipy.
 - To compile and build the binaries to run the experiments, execute these commands in the base directory of the repository:
-```bash
+```output
 $ make clean
 $ make
 $ ./run_tests.sh <output_file_path>
 ```
-- After running the tests, open the `data_analysis.ipynb` and set the `data_csv_name` in the second code block of the notebook.
+- After running the `run_tests.sh` script, open the `data_analysis.ipynb` and set the `data_csv_name` in the second code block of the notebook to the name of the `<output_file_path>` provided to the `run_tests.sh` script.
 - Furthermore, the `tests` binary generated in the `tests` directory can be used to run experiments individually. Usage instructions:
-```bash
+```output
 $ ./tests --help
 Usage: tests [OPTION...]
   -l, --sl                          Run the test for the skip list data structure
@@ -36,8 +36,8 @@ Help options:
   -?, --help                        Show this help message
       --usage                       Display brief usage message
 ```
-- An example of using the `tests` binary:
-```bash
+- An example of use the `tests` binary:
+```output
 $ /tests --num-threads 6 --num-ops 1000000 -k 2000 -g 90 -a 9 -r 1
 Options chosen:
 Testing data structure: binary search tree
@@ -63,7 +63,7 @@ Binary search tree memory utilization: 128592 bytes
 ## Data Source
 
 - The only data source required for this project is the generation of keys to perform operations on the binary search tree or skip list.
-- The keys in this project are randomly generated using the C standard library's rand() function.
+- The keys in this project are randomly generated using the C standard library's `rand()` function.
 - Keys are integers generated from 0 to the maximum range provided by the user.
 - Random key generating function as present in the test code:
 ```c
