@@ -18,4 +18,4 @@ libbst.a: bst.c $(INCDIR)/bst.h
 	ar -cvq libbst.a bst.o
 
 clean:
-	rm *.o *.a
+	rm -f *.o *.a

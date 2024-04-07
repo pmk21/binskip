@@ -17,4 +17,4 @@ tests: test.c test.h
 	$(CC) -o tests test.c $(CFLAGS) $(LDFLAGS)
 
 clean:
-	rm tests
+	rm -f tests
