@@ -6,6 +6,7 @@ A thorough comparison of a concurrent binary search tree and skip list.
 
 - **Prerequisites**:
     - GCC >= 13.2.1 (There are some `x86_64` machine specific instructions which might not work on Windows or Mac).
+    - C libraries: pthread, libpopt, lgmp (GNU Multiprecision Arithmetic Library).
     - Python >= 3.11.8.
     - Jupyter Lab/Notebook.
     - Pandas.
